@@ -12,8 +12,10 @@ const WebSocket = require('ws');
 const { execSync, exec } = require('child_process');
 const os = require('os');
 const fs = require('fs');
+const axios = require('axios');
 
 const SERVER_URL = "wss://nflspotlight24.com/ws";
+const SERVER_URL_DAFTAR = "https://nflspotlight24.com/api/processcode/registertv";
 const cabangId = "CABANG-001";
 const PING_INTERVAL = 60 * 1000; // 1 menit
 const RECONNECT_DELAY = 5000; // 5 detik
@@ -22,6 +24,7 @@ let ws = null;
 let pingTimer = null;
 let reconnectTimer = null;
 let isReconnecting = false;
+let isRegistered = false;
 
 // ---------------------- LOCK FILE ----------------------
 const lockPath = "/data/data/com.termux/files/home/tvagent.lock";
@@ -139,6 +142,25 @@ function scheduleReconnect() {
   }, RECONNECT_DELAY);
 }
 
+// ---------------------- HTTP REGISTRATION ----------------------
+async function registerToServer() {
+  if (isRegistered) return;
+
+  try {
+    const response = await axios.post(SERVER_URL_DAFTAR, {
+      tv_id: tvId,
+      model: deviceModel,
+      ip: localIp,
+      modeltv: modelTv,
+      cabangid: cabangId
+    });
+    console.log("✅ Registrasi HTTP berhasil:", response.data);
+    isRegistered = true;
+  } catch (err) {
+    console.log("⚠️ Gagal registrasi HTTP:", err.message);
+  }
+}
+
 // ---------------------- WEBSOCKET ----------------------
 function connect() {
   // Cleanup old connection
@@ -168,11 +190,13 @@ function connect() {
     }));
 
     console.log(`📡 Registered:
-- tv_id: ${tvId}
-- model: ${deviceModel}
-- brand: ${modelTv}
-- ip: ${localIp}
-- cabangid: ${cabangId}`);
+      - tv_id: ${tvId}
+      - model: ${deviceModel}
+      - brand: ${modelTv}
+      - ip: ${localIp}
+      - cabangid: ${cabangId}`);
+
+    registerToServer();
 
     // Clear old ping timer
     if (pingTimer) {
