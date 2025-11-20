@@ -1,0 +1,17 @@
+1. buka f-droid
+2. search termux dan install (termux, termux:api, termux:boot) #harus urut
+3. pkg update && pkg upgrade -y
+4. pkg install nodejs -y
+5. pkg install git -y
+6. npm install ws
+7 .npm install axios
+8. termux-setup-storage
+9. npm install pm2 -g
+10. pm2 start agent.js --name tvagent
+11. pm2 save
+
+
+mkdir -p ~/.termux/boot
+nano ~/.termux/boot/start-pm2.sh
+chmod +x ~/.termux/boot/start-pm2.sh
+
