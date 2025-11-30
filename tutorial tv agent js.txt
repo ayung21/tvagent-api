@@ -7,11 +7,20 @@
 7 .npm install axios
 8. termux-setup-storage
 9. npm install pm2 -g
-10. pm2 start agent.js --name tvagent
+10. pm2 start tvagent.js --name tvagent
 11. pm2 save
 
 
+salah
 mkdir -p ~/.termux/boot
 nano ~/.termux/boot/start-pm2.sh
 chmod +x ~/.termux/boot/start-pm2.sh
+
+
+revisi
+
+mkdir -p ~/.termux/boot
+nano ~/.termux/boot/start-sshd
+chmod +x ~/.termux/boot/start-sshd
+chmod 700 ~/.termux/boot/start-sshd
 

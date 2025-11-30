@@ -1,0 +1,30 @@
+#!/data/data/com.termux/files/usr/bin/bash
+LOG="$HOME/boot.log"
+
+log() {
+  echo "$(date '+%a %b %d %H:%M:%S WIB %Y') - $1" >> "$LOG"
+}
+
+PM2CMD="/data/data/com.termux/files/usr/bin/node /data/data/com.termux/files/usr/lib/node_modules/pm2/bin/pm2"
+
+log "Boot script STARTED"
+
+log "Wake lock applied"
+termux-wake-lock
+
+log "Starting SSHD..."
+sshd
+log "SSHD started"
+
+log "Starting PM2 daemon..."
+$PM2CMD kill >/dev/null 2>&1
+$PM2CMD daemon >/dev/null 2>&1
+
+sleep 2
+log "PM2 resurrect..."
+$PM2CMD resurrect >/dev/null 2>&1
+
+log "PM2 LIST after resurrect:"
+$PM2CMD list >> "$LOG" 2>&1
+
+log "BOOT COMPLETE"
