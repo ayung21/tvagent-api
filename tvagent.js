@@ -16,15 +16,20 @@ const axios = require('axios');
 
 const SERVER_URL = "wss://nflspotlight24.com/ws";
 const SERVER_URL_DAFTAR = "https://nflspotlight24.com/api/processcode/registertv";
-const cabangId = "CABANG-001";
+const cabangId = 1;
 const PING_INTERVAL = 60 * 1000; // 1 menit
-const RECONNECT_DELAY = 5000; // 5 detik
+const RECONNECT_DELAY_MIN = 5000;    // 5 detik
+const RECONNECT_DELAY_MAX = 300000;  // 5 menit
+const MAX_RECONNECT_ATTEMPTS = 100;   // Optional: stop after 100 attempts
 
 let ws = null;
 let pingTimer = null;
 let reconnectTimer = null;
 let isReconnecting = false;
 let isRegistered = false;
+let reconnectAttempts = 0;
+let lastActivityTime = Date.now();
+let healthCheckInterval = null;
 
 // ---------------------- LOCK FILE ----------------------
 const lockPath = "/data/data/com.termux/files/home/tvagent.lock";
@@ -118,19 +123,38 @@ function sendKey(command) {
 
 // ---------------------- RECONNECT LOGIC ----------------------
 function scheduleReconnect() {
-  // Prevent multiple reconnect timers
   if (isReconnecting) {
     console.log("⏳ Reconnect sudah dijadwalkan, skip...");
     return;
   }
   
+  // Optional: Stop after max attempts
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.log("🚨 Max reconnect attempts reached. Stopping...");
+    cleanup();
+    process.exit(1);
+  }
+  
   isReconnecting = true;
-  console.log(`❌ Koneksi putus, reconnect dalam ${RECONNECT_DELAY/1000} detik...`);
+  reconnectAttempts++;
+  
+  // Exponential backoff
+  const delay = Math.min(
+    RECONNECT_DELAY_MIN * Math.pow(2, reconnectAttempts - 1),
+    RECONNECT_DELAY_MAX
+  );
+  
+  console.log(`❌ Koneksi putus (attempt #${reconnectAttempts})`);
+  console.log(`⏱️  Reconnect dalam ${delay/1000} detik...`);
   
   // Clear existing timers
   if (pingTimer) {
     clearInterval(pingTimer);
     pingTimer = null;
+  }
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    healthCheckInterval = null;
   }
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
@@ -139,7 +163,7 @@ function scheduleReconnect() {
   reconnectTimer = setTimeout(() => {
     isReconnecting = false;
     connect();
-  }, RECONNECT_DELAY);
+  }, delay);
 }
 
 // ---------------------- HTTP REGISTRATION ----------------------
@@ -173,21 +197,35 @@ function connect() {
   }
 
   console.log("🔌 Menghubungkan ke server...");
-  ws = new WebSocket(SERVER_URL);
+  
+  try {
+    ws = new WebSocket(SERVER_URL);
+  } catch (err) {
+    console.log("🚨 Error creating WebSocket:", err.message);
+    scheduleReconnect();
+    return;
+  }
 
   ws.on("open", () => {
     console.log("✅ Tersambung ke server");
+    
+    // RESET counters on successful connection
+    reconnectAttempts = 0;
     isReconnecting = false;
+    lastActivityTime = Date.now();
 
     // Send registration
-    ws.send(JSON.stringify({
+    const regData = {
       type: "register",
       tv_id: tvId,
       model: deviceModel,
       ip: localIp,
       modeltv: modelTv,
       cabangid: cabangId
-    }));
+    };
+    
+    console.log("📤 Sending:", JSON.stringify(regData));
+    ws.send(JSON.stringify(regData));
 
     console.log(`📡 Registered:
       - tv_id: ${tvId}
@@ -196,35 +234,74 @@ function connect() {
       - ip: ${localIp}
       - cabangid: ${cabangId}`);
 
+    // HTTP registration
     registerToServer();
 
-    // Clear old ping timer
+    // Clear old timers
     if (pingTimer) {
       clearInterval(pingTimer);
       pingTimer = null;
     }
+    if (healthCheckInterval) {
+      clearInterval(healthCheckInterval);
+      healthCheckInterval = null;
+    }
 
-    // Start new ping interval
+    // Ping interval
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ 
-          type: "ping", 
-          tv_id: tvId, 
-          ip: getLocalIp(), 
-          time: new Date().toISOString() 
-        }));
-        console.log("📶 Ping terkirim");
+        try {
+          ws.send(JSON.stringify({ 
+            type: "ping", 
+            tv_id: tvId, 
+            ip: getLocalIp(), 
+            time: new Date().toISOString() 
+          }));
+          lastActivityTime = Date.now();
+          console.log("📶 Ping terkirim");
+        } catch (err) {
+          console.log("⚠️ Ping error:", err.message);
+          scheduleReconnect();
+        }
+      } else {
+        console.log("⚠️ WebSocket not OPEN, reconnecting...");
+        scheduleReconnect();
       }
     }, PING_INTERVAL);
+    
+    // Health check (detect stale connection)
+    healthCheckInterval = setInterval(() => {
+      const idleTime = Date.now() - lastActivityTime;
+      
+      if (idleTime > PING_INTERVAL * 3) {
+        console.log("🚨 Connection stale, forcing reconnect...");
+        if (ws) ws.terminate();
+        scheduleReconnect();
+      }
+    }, PING_INTERVAL * 2);
   });
 
   ws.on("message", (msg) => {
-    console.log("📩 Pesan diterima (raw):", msg.toString()); // ← TAMBAHKAN INI
+    lastActivityTime = Date.now(); // Update activity time
+    console.log("📩 Pesan diterima (raw):", msg.toString());
     
     try {
         const data = JSON.parse(msg);
-        console.log("📦 Pesan parsed:", data); // ← TAMBAHKAN INI
+        console.log("📦 Pesan parsed:", data);
         
+        // Handle welcome message
+        if (data.type === "welcome") {
+          console.log("👋 Welcome message received:", data.message);
+          return;
+        }
+        
+        // Handle pong/acknowledgment
+        if (data.type === "pong") {
+          console.log("🏓 Pong received");
+          return;
+        }
+        
+        // Handle command
         if (data.target === tvId || data.target === "all") {
             console.log("✅ Target match, eksekusi command:", data.command);
             sendKey(data.command);
@@ -246,7 +323,7 @@ function connect() {
     } catch (err) {
         console.log("⚠️ Error parsing message:", err.message);
     }
-});
+  });
 
   ws.on("close", (code, reason) => {
     console.log(`🔴 Connection closed (code: ${code}, reason: ${reason || 'none'})`);
@@ -255,7 +332,17 @@ function connect() {
 
   ws.on("error", (err) => {
     console.log("⚠️ WebSocket error:", err.message);
-    // Don't reconnect here, let close event handle it
+  });
+
+  ws.on("ping", (data) => {
+    console.log("📶 Server ping received, sending pong...");
+    lastActivityTime = Date.now();
+    ws.pong();
+  });
+
+  ws.on("pong", (data) => {
+    console.log("📶 Server pong received");
+    lastActivityTime = Date.now();
   });
 }
 
