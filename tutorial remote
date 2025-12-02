@@ -1,0 +1,29 @@
+adb install termux.apk
+adb install termux-api.apk
+adb install termux-boot.apk
+
+adb push setup.sh /sdcard/Download/setup.sh
+
+adb shell am start -n com.termux/.app.TermuxActivity
+adb shell input text "bash /sdcard/Download/setup.sh"
+adb shell input keyevent 66
+
+
+
+
+Mengirim file ke Termux menggunakan SCP
+
+Misal IP VPN client: 10.8.0.5
+
+Di server jalankan:
+
+scp tvagent.js start-sshd u0_a780@10.8.0.5:/data/data/com.termux/files/home/
+
+Atau jika mau kirim ke storage downloads:
+scp tvagent.js start-sshd u0_a780@10.8.0.5:/sdcard/Download/
+
+
+u0_a780 adalah username Termux (tiap device berbeda).
+Jika ingin melihat username di Termux:
+
+whoami
