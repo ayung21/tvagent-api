@@ -1,0 +1,29 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+# --- KONFIGURASI ---
+# Kita buat file log khusus widget (atau bisa diganti ke boot.log jika mau digabung)
+LOG_FILE="$HOME/widget_pm2.log"
+PM2CMD="/data/data/com.termux/files/usr/bin/node /data/data/com.termux/files/usr/lib/node_modules/pm2/bin/pm2"
+
+# --- FUNGSI LOGGING ---
+# Fungsi ini mencetak ke Layar DAN menyimpan ke File secara bersamaan
+log_custom() {
+  TIMESTAMP=$(date '+%a %b %d %H:%M:%S WIB %Y')
+  echo "$TIMESTAMP - $1" | tee -a "$LOG_FILE"
+}
+
+# --- MULAI EKSEKUSI ---
+log_custom "=== AKSES WIDGET DIMULAI ==="
+
+log_custom "Menjalankan PM2 Resurrect..."
+# '2>&1' artinya error juga ikut dicatat
+# 'tee -a' artinya tampilkan di layar DAN tambahkan (append) ke file log
+$PM2CMD resurrect 2>&1 | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+log_custom "Status PM2 Terkini:"
+$PM2CMD list 2>&1 | tee -a "$LOG_FILE"
+
+log_custom "=== AKSES WIDGET SELESAI ==="
+echo ""
+read -p "Tekan Enter untuk menutup..."
