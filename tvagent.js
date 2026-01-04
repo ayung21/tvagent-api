@@ -302,7 +302,7 @@ function connect() {
         }
         
         // Handle command
-        if (data.target === tvId || data.target === "all") {
+        if (data.tvId === tvId && data.type === "command" ) {
             console.log("✅ Target match, eksekusi command:", data.command);
             sendKey(data.command);
             
@@ -318,7 +318,7 @@ function connect() {
                 console.log("✅ Konfirmasi dikirim");
             }
         } else {
-            console.log("⚠️ Target tidak match. Data target:", data.target, "TV ID:", tvId);
+            console.log("⚠️ Target tidak match. Data target:", data.tvId, "TV ID:", tvId);
         }
     } catch (err) {
         console.log("⚠️ Error parsing message:", err.message);
