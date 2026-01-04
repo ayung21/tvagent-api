@@ -10,6 +10,22 @@
 10. pm2 start tvagent.js --name tvagent
 11. pm2 save
 
+revisi jalankan pm2 resurrect via widget terusan langkah awal
+
+1. buka f-droid
+2. search "termux" dan install termux:widget
+3. mkdir -p .shortcuts
+4. nano .shortcuts/start
+5. (isi sesuai file atau copy kan file start di dalam .shortcuts)
+6. chmod +x .shortcuts/start
+
+Pasang di Home Screen:
+    - Kembali ke layar utama HP/TV.
+    - Tekan tahan layar kosong -> Pilih Widgets.
+    - Cari Termux:Widget.
+    - Pilih widget tersebut, nanti akan muncul daftar skrip yang ada di folder .shortcuts.
+    - Pilih start
+    - jika widget belum mendapat izin (setting - apps - special app access - display over other apps - pilih termux)
 
 salah
 mkdir -p ~/.termux/boot
@@ -23,4 +39,3 @@ mkdir -p ~/.termux/boot
 nano ~/.termux/boot/start-sshd
 chmod +x ~/.termux/boot/start-sshd
 chmod 700 ~/.termux/boot/start-sshd
-
