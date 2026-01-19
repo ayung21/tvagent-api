@@ -25,7 +25,8 @@ Pasang di Home Screen:
     - Cari Termux:Widget.
     - Pilih widget tersebut, nanti akan muncul daftar skrip yang ada di folder .shortcuts.
     - Pilih start
-    - jika widget belum mendapat izin (setting - apps - special app access - display over other apps - pilih termux)
+    - jika widget belum mendapat izin (setting - apps - special app access - display over other apps - pilih termux) (tv)
+    - jika widget belum mendapat izin (setting - apps - muncul di atas - pilih termux)
 
 salah
 mkdir -p ~/.termux/boot
