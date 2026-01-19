@@ -14,8 +14,8 @@ const os = require('os');
 const fs = require('fs');
 const axios = require('axios');
 
-const SERVER_URL = "wss://nflspotlight24.com/ws";
-const SERVER_URL_DAFTAR = "https://nflspotlight24.com/api/processcode/registertv";
+const SERVER_URL = "wss://billing.namecholdings.my.id/ws";
+const SERVER_URL_DAFTAR = "https://billing.namecholdings.my.id/api/processcode/registertv";
 const cabangId = 1;
 const PING_INTERVAL = 60 * 1000; // 1 menit
 const RECONNECT_DELAY_MIN = 5000;    // 5 detik
@@ -98,7 +98,7 @@ function getLocalIp() {
   return "unknown";
 }
 
-const tvId = getDeviceId();
+const tv_id = getDeviceId();
 const deviceModel = getProp("ro.product.model");
 const modelTv = getProp("ro.product.brand").toUpperCase();
 const localIp = getLocalIp();
@@ -113,11 +113,18 @@ const COMMAND_MAP = {
   mute: 164,
 };
 
-function sendKey(command) {
+function sendKey(command, callback) {
   const code = COMMAND_MAP[command] || command;
-  exec(`adb shell input keyevent ${code}`, (err) => {
-    if (err) console.log("⚠️ ADB gagal:", err.message);
-    else console.log("🎮 ADB keyevent:", command);
+  
+  exec(`adb shell input keyevent ${code}`, (err, stdout, stderr) => {
+    if (err) {
+      console.log("❌ ADB keyevent GAGAL:", command, "Error:", err.message);
+      if (callback) callback({ success: false, command, error: err.message });
+      return;
+    }
+    
+    console.log("✅ ADB keyevent BERHASIL:", command);
+    if (callback) callback({ success: true, command });
   });
 }
 
@@ -172,7 +179,7 @@ async function registerToServer() {
 
   try {
     const response = await axios.post(SERVER_URL_DAFTAR, {
-      tv_id: tvId,
+      tv_id: tv_id,
       model: deviceModel,
       ip: localIp,
       modeltv: modelTv,
@@ -217,7 +224,7 @@ function connect() {
     // Send registration
     const regData = {
       type: "register",
-      tv_id: tvId,
+      tv_id: tv_id,
       model: deviceModel,
       ip: localIp,
       modeltv: modelTv,
@@ -228,7 +235,7 @@ function connect() {
     ws.send(JSON.stringify(regData));
 
     console.log(`📡 Registered:
-      - tv_id: ${tvId}
+      - tv_id: ${tv_id}
       - model: ${deviceModel}
       - brand: ${modelTv}
       - ip: ${localIp}
@@ -253,7 +260,7 @@ function connect() {
         try {
           ws.send(JSON.stringify({ 
             type: "ping", 
-            tv_id: tvId, 
+            tv_id: tv_id, 
             ip: getLocalIp(), 
             time: new Date().toISOString() 
           }));
@@ -282,7 +289,7 @@ function connect() {
   });
 
   ws.on("message", (msg) => {
-    lastActivityTime = Date.now(); // Update activity time
+    lastActivityTime = Date.now();
     console.log("📩 Pesan diterima (raw):", msg.toString());
     
     try {
@@ -302,23 +309,34 @@ function connect() {
         }
         
         // Handle command
-        if (data.tvId === tvId && data.type === "command" ) {
+        if (data.tv_id === tv_id && data.type === "command") {
             console.log("✅ Target match, eksekusi command:", data.command);
-            sendKey(data.command);
             
-            // Send confirmation
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: "confirm",
-                    tv_id: tvId,
-                    command: data.command,
-                    status: "ok",
-                    time: new Date().toISOString()
-                }));
-                console.log("✅ Konfirmasi dikirim");
-            }
+            // Eksekusi command dengan callback
+            sendKey(data.command, (result) => {
+              // Send confirmation ke server
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                const response = {
+                  type: "confirm",
+                  tv_id: tv_id,
+                  command: data.command,
+                  status: result.success ? "success" : "failed",
+                  error: result.error || null,
+                  time: new Date().toISOString()
+                };
+                
+                ws.send(JSON.stringify(response));
+                
+                if (result.success) {
+                  console.log("✅ Konfirmasi SUCCESS dikirim:", data.command);
+                } else {
+                  console.log("❌ Konfirmasi FAILED dikirim:", data.command, result.error);
+                }
+              }
+            });
+            
         } else {
-            console.log("⚠️ Target tidak match. Data target:", data.tvId, "TV ID:", tvId);
+            console.log("⚠️ Target tidak match. Data target:", data.tv_id, "TV ID:", tv_id);
         }
     } catch (err) {
         console.log("⚠️ Error parsing message:", err.message);
