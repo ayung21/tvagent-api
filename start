@@ -25,5 +25,15 @@ log_custom "Status PM2 Terkini:"
 $PM2CMD list 2>&1 | tee -a "$LOG_FILE"
 
 log_custom "=== AKSES WIDGET SELESAI ==="
-echo ""
-read -p "Tekan Enter untuk menutup..."
+
+# Auto-close untuk TV TCL
+if [ -f "/system/build.prop" ]; then
+  MODEL=$(getprop ro.product.model)
+  if [[ "$MODEL" == *"TCL"* ]] || [[ "$MODEL" == *"Android TV"* ]]; then
+    log_custom "Detected TV, force closing Termux..."
+    sleep 2
+    kill -9 $PPID 2>/dev/null || am force-stop com.termux 2>/dev/null
+  fi
+fi
+
+exit 0
