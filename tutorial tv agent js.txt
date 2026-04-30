@@ -27,6 +27,13 @@ Pasang di Home Screen:
     - Pilih start
     - jika widget belum mendapat izin (setting - apps - special app access - display over other apps - pilih termux) (tv)
     - jika widget belum mendapat izin (setting - apps - muncul di atas - pilih termux)
+    - Instal aplikasi Button Mapper dari Play Store di TV.
+    - Buka aplikasi, berikan izin Accessibility (Aksesibilitas).
+    - Pilih tombol yang mau dikorbankan (misal: Tombol Biru atau Long Press tombol Back).
+    - Pilih Customize -> Single Tap (atau Long Press).
+    - Pilih Actions -> Shortcuts (Pintasan).
+    - Cari Termux:Widget.
+    - Pilih script jalankan-pm2.
 
 salah
 mkdir -p ~/.termux/boot
