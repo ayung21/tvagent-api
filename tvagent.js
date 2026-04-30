@@ -14,8 +14,8 @@ const os = require('os');
 const fs = require('fs');
 const axios = require('axios');
 
-const SERVER_URL = "wss://billing.namecholdings.my.id/ws";
-const SERVER_URL_DAFTAR = "https://billing.namecholdings.my.id/api/processcode/registertv";
+const SERVER_URL = "wss://api.namecholdings.my.id/ws";
+const SERVER_URL_DAFTAR = "https://api.namecholdings.my.id/api/processcode/registertv";
 const cabangId = 1;
 const PING_INTERVAL = 60 * 1000; // 1 menit
 const RECONNECT_DELAY_MIN = 5000;    // 5 detik
@@ -184,11 +184,54 @@ async function registerToServer() {
       ip: localIp,
       modeltv: modelTv,
       cabangid: cabangId
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      timeout: 10000
     });
-    console.log("✅ Registrasi HTTP berhasil:", response.data);
-    isRegistered = true;
+
+    // Cek content-type response
+    const contentType = response.headers['content-type'] || '';
+    if (!contentType.includes('application/json')) {
+      console.log("⚠️ Response bukan JSON, content-type:", contentType);
+      console.log("🔄 Retry dalam 30 detik...");
+      setTimeout(() => registerToServer(), 30000);
+      return;
+    }
+
+    if (response.data && response.data.success) {
+      console.log("✅ Registrasi HTTP berhasil:", response.data.message);
+      console.log("📋 Data TV:", JSON.stringify(response.data.data));
+      isRegistered = true;
+    } else {
+      console.log("⚠️ Response tidak valid:", response.data);
+      setTimeout(() => registerToServer(), 30000);
+    }
+
   } catch (err) {
-    console.log("⚠️ Gagal registrasi HTTP:", err.message);
+    if (err.response) {
+      const contentType = err.response.headers['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        console.log("⚠️ Server return HTML (status:", err.response.status, ")");
+      } else {
+        console.log("⚠️ Server error:", err.response.status, err.response.data);
+      }
+    } else if (err.code === 'ECONNABORTED') {
+      console.log("⚠️ Registrasi timeout");
+    } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
+      console.log("⚠️ Server tidak dapat dijangkau:", err.message);
+    } else {
+      console.log("⚠️ Gagal registrasi HTTP:", err.message);
+    }
+
+    // Retry semua error
+    console.log("🔄 Retry registrasi dalam 30 detik...");
+    setTimeout(() => {
+      isRegistered = false;
+      registerToServer();
+    }, 30000);
   }
 }
 
@@ -216,12 +259,11 @@ function connect() {
   ws.on("open", () => {
     console.log("✅ Tersambung ke server");
     
-    // RESET counters on successful connection
     reconnectAttempts = 0;
     isReconnecting = false;
     lastActivityTime = Date.now();
 
-    // Send registration
+    // Send WS registration
     const regData = {
       type: "register",
       tv_id: tv_id,
@@ -233,6 +275,12 @@ function connect() {
     
     console.log("📤 Sending:", JSON.stringify(regData));
     ws.send(JSON.stringify(regData));
+
+    // ✅ Delay HTTP registration 3 detik setelah WS connect
+    // Memberi waktu network stabil di Android TV
+    setTimeout(() => {
+      registerToServer();
+    }, 3000);
 
     console.log(`📡 Registered:
       - tv_id: ${tv_id}
