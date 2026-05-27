@@ -26,13 +26,31 @@ $PM2CMD list 2>&1 | tee -a "$LOG_FILE"
 
 log_custom "=== AKSES WIDGET SELESAI ==="
 
-# Auto-close untuk TV TCL
+# Auto-close untuk semua Android TV / Google TV
 if [ -f "/system/build.prop" ]; then
-  MODEL=$(getprop ro.product.model)
-  if [[ "$MODEL" == *"TCL"* ]] || [[ "$MODEL" == *"Android TV"* ]]; then
-    log_custom "Detected TV, force closing Termux..."
-    sleep 2
-    kill -9 $PPID 2>/dev/null || am force-stop com.termux 2>/dev/null
+  CHARACTERISTICS="$(getprop ro.build.characteristics 2>/dev/null)"
+  MODEL="$(getprop ro.product.model 2>/dev/null)"
+  MANUFACTURER="$(getprop ro.product.manufacturer 2>/dev/null)"
+
+  IS_TV=0
+
+  # Sinyal paling akurat: device "characteristics" biasanya mengandung "tv"
+  if [[ "${CHARACTERISTICS,,}" == *"tv"* ]]; then
+    IS_TV=1
+  fi
+
+  # Fallback: beberapa device tidak mengisi characteristics dengan benar
+  if [ "$IS_TV" -eq 0 ]; then
+    if [[ "${MODEL,,}" == *"android tv"* ]] || [[ "${MODEL,,}" == *"google tv"* ]] || [[ "${MODEL,,}" == *"smart tv"* ]]; then
+      IS_TV=1
+    elif [[ "${MANUFACTURER,,}" == *"tcl"* ]]; then
+      IS_TV=1
+    fi
+  fi
+
+  if [ "$IS_TV" -eq 1 ]; then
+    log_custom "Detected TV (${MANUFACTURER:-unknown} ${MODEL:-unknown}), exiting script only (PM2 stays running)."
+    exit 0
   fi
 fi
 
